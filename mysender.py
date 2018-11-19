@@ -61,6 +61,7 @@ while True:
             done=True
         window.append(sending_pkg)
         data = sending_file.read(tamano_pkg) #leer mas info
+    
         # Seteamos un timeout (bloqueamos el socket después de 0.5s)
         the_socket.settimeout(0.5)
 
@@ -78,10 +79,11 @@ while True:
             # Obtenemos la respuesta (estamos esperando un ACK)
             ack, address = the_socket.recvfrom(buf)
 
+            rcv_package = []
+            rcv_package.append(ack)
             # Si recibimos lo que esperabamos, actualizamos cómo va el envío
-            if (str(ack) == str(seq)):
+            if (str(ack) >= str(seq)): #acks acumulativos
                 print str(current_size) + " / " + str(total_size) + "(current size / total size), " + str(percent) + "%"
-
                 # y pasamos a actualizar los parametros en (**)
                 break
 
@@ -100,8 +102,7 @@ while True:
         break
 
     # (**) Actualizamos los parámetros :
-    data = sending_file.read(buf-1)
-    current_size += len(data)
+    data = sending_file.read(buf-1)    current_size += len(data)
     percent = round(float(current_size) / float(total_size) * 100,2)
 
     # Si no hay datos mandamos un string vacío y dejamos de enviar cosas
