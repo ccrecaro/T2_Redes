@@ -1,118 +1,85 @@
-# -*- coding: utf-8 -*-
-import socket
+from socket import *
+import hashlib
+import pickle
 import sys
 import os
+import math
 import time
 
-# Parámetros para echar a correr el enviador
-if len(sys.argv) != 4:
-    print "python sender.py [IPADDRESS] [PORTNUMBER] [FILENAME]"
-    sys.exit()
+#takes the port number as command line arguments
+serverName="127.0.0.1"
+serverPort=int(sys.argv[1])
 
-# Armamos el socket
-the_socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+#takes the file name as command line arguments
+filename = ''.join(sys.argv[2])
 
-# Obtenemos el puerto y la IP
-Server_IP = sys.argv[1]
-Server_Port = int(sys.argv[2])
+#create client socket
+clientSocket = socket(AF_INET,SOCK_DGRAM)
+clientSocket.settimeout(0.001)
 
-# Establecemos parámetros
-buf = 1024
-address = (Server_IP,Server_Port)
-ack = 0
+#initializes window variables (upper and lower window bounds, position of next seq number)
+base=1
+nextSeqnum=1
+windowSize=7
+window = []
 
-#Inicializamos ventana
-base=0
-seq = 0
-window_size=7
-window=[]
-
-# Obtenemos los parámetros del archivo a enviar
-file_name=sys.argv[3]
-total_size = os.path.getsize(file_name)
-current_size = 0
+#SENDS DATA
+fileOpen= open(filename, 'rb') 
+data = fileOpen.read(500)
 done = False
-percent = round(0,2)
-t_lastackrecieved = time.time()
-tamano_pkg = 500
+lastackreceived = time.time()
 
-# Abrimos el archivo
-sending_file = open(file_name,"rb")
-data = sending_file.read(tamano_pkg)
-# 'Codificamos' el header
-header = str(file_name) + "|||" + str(tamano_pkg) + "|||" + str(seq)
+address = (serverName,serverPort)
 
-# while para enviar datos
-while True:
-    #Ver si la ventana esta llena
-    if (seq<base+window_size) and not done:
-        sending_pkg=[]
+while not done or window:
+#	check if the window is full	or EOF has reached
+	if(nextSeqnum<base+windowSize) and not done:
+#		create packet(seqnum,data,checksum)
+		sndpkt = []
+		sndpkt.append(nextSeqnum)
+		sndpkt.append(data)
+		h = hashlib.md5()
+		h.update(pickle.dumps(sndpkt))
+		sndpkt.append(h.digest())
+#		send packet
+		clientSocket.sendto(pickle.dumps(sndpkt), address)
+		print "Sent data", nextSeqnum
+#		increment variable nextSeqnum
+		nextSeqnum = nextSeqnum + 1
+#		check if EOF has reached
+		if(not data):
+			done = True
+#		append packet to window
+		window.append(sndpkt)
+#		read more data
+		data = fileOpen.read(500)
 
-        sending_pkg.append(header)
-        sending_pkg.append(data)
+#RECEIPT OF AN ACK
+	try:
+		packet,serverAddress = clientSocket.recvfrom(4096)
+		rcvpkt = []
+		rcvpkt = pickle.loads(packet)
+#		check value of checksum received (c) against checksum calculated (h) 
+		c = rcvpkt[-1]
+		del rcvpkt[-1]
+		h = hashlib.md5()
+		h.update(pickle.dumps(rcvpkt))
+		if c == h.digest():
+			print "Received ack for", rcvpkt[0]
+#			slide window and reset timer
+			while rcvpkt[0]>base and window:
+				lastackreceived = time.time()
+				del window[0]
+				base = base + 1
+		else:
+			print "error detected"
+#TIMEOUT
+	except:
+		if(time.time()-lastackreceived>0.01):
+			for i in window:
+				clientSocket.sendto(pickle.dumps(i), address)
 
-        # Mandamos los datos donde corresponde
-        the_socket.sendto(data,address)
+fileOpen.close()
 
-        # Actualizamos el número de secuencia
-        seq = (seq + 1) % window_size
-
-        if not data:
-            done=True
-        window.append(sending_pkg)
-        data = sending_file.read(tamano_pkg) #leer mas info
-    
-        # Seteamos un timeout (bloqueamos el socket después de 0.5s)
-        the_socket.settimeout(0.5)
-
-        # Contador de intentos
-        try_counter = 0
-
-    # Vemos que llegue el ACK
-    while True:
-        try:
-            # Si en 10 intentos no funciona, salimos
-            if try_counter == 10:
-                print "error"
-                break
-
-            # Obtenemos la respuesta (estamos esperando un ACK)
-            ack, address = the_socket.recvfrom(buf)
-
-            rcv_package = []
-            rcv_package.append(ack)
-            # Si recibimos lo que esperabamos, actualizamos cómo va el envío
-            if (str(ack) >= str(seq)): #acks acumulativos
-                print str(current_size) + " / " + str(total_size) + "(current size / total size), " + str(percent) + "%"
-                # y pasamos a actualizar los parametros en (**)
-                break
-
-            # Si no, seguimos esperando el ack
-            else:
-                print "ack is not equal to seq"
-
-        except:
-            # Si ocurre un error avisamos y aumentamos el contador
-            try_counter += 1
-            print "timed out"
-            the_socket.sendto(data,address)
-
-    # Si en 10 intentos no funciona, salimos
-    if try_counter == 10:
-        break
-
-    # (**) Actualizamos los parámetros :
-    data = sending_file.read(buf-1)    current_size += len(data)
-    percent = round(float(current_size) / float(total_size) * 100,2)
-
-    # Si no hay datos mandamos un string vacío y dejamos de enviar cosas
-    if not data or done:
-        the_socket.sendto("",address)
-        break
-
-    # Actualizamos los datos a enviar
-    data += str(seq)
-
-# Cerramos conexión y archivo
-the_socket.close()
-sending_file.close()
+print "connection closed"    
+clientSocket.close()
