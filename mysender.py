@@ -7,11 +7,11 @@ import math
 import time
 
 #takes the port number as command line arguments
-serverName="127.0.0.1"
-serverPort=int(sys.argv[1])
+serverName=sys.argv[1]
+serverPort=int(sys.argv[2])
 
 #takes the file name as command line arguments
-filename = ''.join(sys.argv[2])
+filename = ''.join(sys.argv[3])
 
 #create client socket
 clientSocket = socket(AF_INET,SOCK_DGRAM)
