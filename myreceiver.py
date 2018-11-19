@@ -7,7 +7,7 @@ import math
 import time
 
 #takes the port number as command line arguments and create server socket
-serverIP=sys.argv[1]
+serverIP=""
 serverPort=int(sys.argv[2])
 
 serverSocket=socket(AF_INET,SOCK_DGRAM)
