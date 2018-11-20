@@ -91,7 +91,6 @@ while True:
 	
 	#si se excede el timeout
 	if time.time()-lastackreceived>time_out:
-		print "timeout, resending"
 		#si ya se envio muchas veces
 		if retransmisiones==10:
 			break
