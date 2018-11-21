@@ -20,7 +20,7 @@ filename = ''.join(sys.argv[3])
 
 #create client socket
 clientSocket = socket(AF_INET,SOCK_DGRAM)
-clientSocket.settimeout(0.001)
+clientSocket.settimeout(0.01)
 
 
 #initializes window variables (upper and lower window bounds, position of next seq number)
@@ -68,26 +68,30 @@ for i in range(0,windowSize):
 		break
 	last_sent = i
 	
+sender_conectado=False
+# Inicio conexion
+# Envio SYN
+syn = 1
+ack = 0
+data_connect_toServer = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+"|||"+str(0)+"|||"+str(syn)+"|||"+str(ack)
+clientSocket.sendto(data_connect_toServer, address)
 
-###############################################################
-###############################################################
-#
-# AQUI HAY QUE HACER LO DE INICIAR LA CONEXION
-#
-###############################################################
-###############################################################
+# Recibo SYN-ACK
+data_server, address = clientSocket.recvfrom(4096)
+(filename, total_size, nextSeqnum_con, tipo_ack, syn, ack_connection)= data_server.split("|||")
+if data_server:	
+	if tipo_ack=="0" and ack_connection=="1" and syn=="1":
+		print "Recibi SYN-ACK"
+		data_connect_toServer2 = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum_con)+"|||"+str(0)+"|||"+str(0)+"|||"+str(1)
+		sender_conectado=True
+		clientSocket.sendto(data_connect_toServer2, address)
 
 
-
-###############################################################
-###############################################################
-###############################################################
-###############################################################
 
 retransmisiones = 0
 end_of_sending = -1
 
-while True:
+while sender_conectado:
 	
 	#si se excede el timeout
 	if time.time()-lastackreceived>time_out:
@@ -123,20 +127,32 @@ while True:
 		
 		#si era el ultimo enviado termina
 		
-		###############################################################
-		###############################################################
-		#
-		# AQUI HAY QUE HACER LO DE TERMINAR LA CONEXION, EN EL IF
-		#
-		###############################################################
-		###############################################################
+		#Termino conexion
 		if done==True and packet==end_of_sending:
-			print "\n\nfinished\n\n"
-			break
-		###############################################################
-		###############################################################
-		###############################################################
-		###############################################################
+			#Envia fin de cierre
+			fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(0)
+			clientSocket.sendto(fin_toclose, serverAddress)
+
+			#Recibe ack de cierre
+			packet,senderAddress= clientSocket.recvfrom(4096)
+			(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
+			if isData=="0" and ack_disconnection=="1":
+				# Recibe fin de cierre
+				packet,senderAddress= clientSocket.recvfrom(4096)
+				(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
+				if isData=="0" and fin=="1":
+					ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(1)
+					clientSocket.sendto(ack_toclose, serverAddress)
+
+					#Cierro conexion
+					clientSocket.close()
+					print "\n\nfinished\n\n"
+					print "Sender cerrado"
+					break
+
+
+
+
 		
 		#actualizo el buffer circular en funcion del ack recibido
 		for i in range(lastacked,updateto+1):
