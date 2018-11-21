@@ -1,14 +1,11 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 from socket import *
-import hashlib
-import pickle
 import sys
 import os
 import math
 import time
 import numpy as np
-import random
 #takes the port number as command line arguments
 serverName=sys.argv[1]
 serverPort=int(sys.argv[2])
@@ -35,7 +32,15 @@ window = []
 #buffer circular con los numeros de secuencia enviados
 seqNums = np.zeros(windowSize,int)
 
-time_out = 2
+#arreglo de tiempos para el algoritmo de Karn
+tiempos = np.ones(windowSize,float)
+alpha = 1.0/8.0
+beta = 1.0/4.0
+
+#timeout inicial
+time_out = 1
+estimatedRTT = time_out
+devRTT = 0
 
 #tamaño a leer del archivo de entrada
 buf_read = 500
@@ -93,10 +98,12 @@ while True:
 	if time.time()-lastackreceived>time_out:
 		#si ya se envio muchas veces
 		if retransmisiones==10:
+			"terminado por exceso de re-transmisiones"
 			break
 		#sino, envia la ventana
 		print "sending window"
 		for i in range( (last_sent+1), (last_sent+1+sentSize) ):
+			tiempos[i%windowSize]=time.time()
 			clientSocket.sendto(window[i%windowSize], address)
 			print "package %d sent" %(seqNums[i%windowSize])
 		#si envie menos elementos que el total de la ventana, es porque se termino el archivo
@@ -112,8 +119,9 @@ while True:
 		except:
 			continue
 		packet = int(str(packet))
+		tiempo_recibido = time.time()
 		#es un ack
-		print "received ack for %d " %(packet)
+		print "received ack for %d " %(packet)		
 		
 		#se busca acumulativamente el elemento confirmado
 		for i in range(0,len(seqNums)):
@@ -121,6 +129,15 @@ while True:
 				updateto=i
 				break
 		
+		
+		#re-calcular el timeout usando algoritmo de Karn
+		if retransmisiones==1:
+			sampleRTT = tiempo_recibido-tiempos[updateto]
+			estimatedRTT = (1.0 - alpha)*estimatedRTT + alpha*sampleRTT
+			devRTT = (1-beta)*devRTT + beta*abs(sampleRTT-estimatedRTT)
+			time_out = estimatedRTT + 4*devRTT
+			print "new timeout %.5f" %(time_out)
+			
 		#si era el ultimo enviado termina
 		
 		###############################################################
@@ -138,6 +155,11 @@ while True:
 		###############################################################
 		###############################################################
 		
+		
+		
+			
+		
+		
 		#actualizo el buffer circular en funcion del ack recibido
 		for i in range(lastacked,updateto+1):
 			data = fileOpen.read(buf_read)
@@ -152,9 +174,10 @@ while True:
 				break
 			#no se acaba el archivo, asi que sigo sumando	
 			last_sent+=1
-				
-		#si me confirman todos los elementos del buffer:					
 		lastacked=updateto+1
+		
+		
+		#si me confirman todos los elementos del buffer:					
 		if updateto==windowSize-1:
 			lastacked=0
 			lastackreceived=0

@@ -1,8 +1,6 @@
 #!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 from socket import *
-import pickle
-import hashlib
 import sys
 import os
 import math
