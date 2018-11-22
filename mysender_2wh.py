@@ -9,6 +9,7 @@ import numpy as np
 
 ti = time.time()
 
+
 #takes the port number as command line arguments
 serverName=sys.argv[1]
 serverPort=int(sys.argv[2])
@@ -111,9 +112,6 @@ while True:
 	if data_server:	
 		if tipo_ack=="0" and syn=="1" and str(total_seq_numbers)==str(nextSeqnum_con):
 			print "Recibi SYN-ACK"
-			data_connect_toServer2 = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum_con)+"|||"+str(0)+"|||"+str(0)
-			clientSocket.sendto(data_connect_toServer2, address)
-			print "ack enviado"
 			sender_conectado=True
 			
 	
@@ -291,7 +289,6 @@ while sender_conectado:
 				
 
 fileOpen.close()
-
 
 tf = time.time()
 
