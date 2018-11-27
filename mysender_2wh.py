@@ -10,21 +10,21 @@ import numpy as np
 ti = time.time()
 
 
-#takes the port number as command line arguments
+
 serverName=sys.argv[1]
 serverPort=int(sys.argv[2])
 address = (serverName,serverPort)
 
 
-#takes the file name as command line arguments
+
 filename = ''.join(sys.argv[3])
 
-#create client socket
+
 clientSocket = socket(AF_INET,SOCK_DGRAM)
 clientSocket.settimeout(2)
 
 
-#initializes window variables (upper and lower window bounds, position of next seq number)
+
 nextSeqnum=0
 windowSize=10
 total_seq_numbers = 2*windowSize
@@ -82,7 +82,7 @@ for i in range(0,windowSize):
 ###############################################################
 ###############################################################
 #
-# AQUI HAY QUE HACER LO DE INICIAR LA CONEXION
+# INICIAR LA CONEXION
 #
 ###############################################################
 ###############################################################
@@ -194,14 +194,14 @@ while sender_conectado:
 		###############################################################
 		###############################################################
 		#
-		# AQUI HAY QUE HACER LO DE TERMINAR LA CONEXION, EN EL IF
+		# TERMINAR LA CONEXION
 		#
 		###############################################################
 		###############################################################
 		if done==True and packet==end_of_sending:
 			#Envia fin de cierre
 			while True:
-				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(0)
+				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+ str(1)
 				clientSocket.sendto(fin_toclose, serverAddress)
 
 				#Recibe ack de cierre
@@ -217,7 +217,7 @@ while sender_conectado:
 					continue
 					
 
-				(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
+				(file_name, total_size, nextSeqnum, isData, ack_disconnection) = packet.split("|||")
 				if isData=="0" and ack_disconnection=="1":
 					while True:
 						try:
@@ -231,9 +231,9 @@ while sender_conectado:
 								break
 							continue
 
-						(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
-						if isData=="0" and fin=="1":
-							ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(1)
+						(file_name, total_size, nextSeqnum, isData, ack_disconnection) = packet.split("|||")
+						if isData=="1" and ack_disconnection=="1":
+							ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+ str(1)
 							clientSocket.sendto(ack_toclose, serverAddress)
 
 							clientSocket.close()

@@ -7,28 +7,29 @@ import math
 import time
 import numpy as np
 
+#para medir el tiempo que toma el envío
 ti = time.time()
 
-#takes the port number as command line arguments
+#recibe el nombre y numero de puerto al que conectarse
 serverName=sys.argv[1]
 serverPort=int(sys.argv[2])
 address = (serverName,serverPort)
 
 
-#takes the file name as command line arguments
+#recibe como argumento también el nombre del archivo
 filename = ''.join(sys.argv[3])
 
-#create client socket
+#crea el socket
 clientSocket = socket(AF_INET,SOCK_DGRAM)
 clientSocket.settimeout(2)
 
 
-#initializes window variables (upper and lower window bounds, position of next seq number)
+#inicializa los numeros de secuencia y el tamaño de ventana
 nextSeqnum=0
 windowSize=10
 total_seq_numbers = 2*windowSize
 
-#cantidad de datos a enviar
+#variable para determinar la cantidad de datos a enviar en una cierta iteracion
 sentSize = 0
 
 #buffer circular para datos
@@ -66,8 +67,11 @@ fileOpen= open(filename, 'rb')
 last_sent = -1
 
 #se leen los elementos hasta que se llene una venta o termine el archivo
+#se usa un header al estilo Ivana
 for i in range(0,windowSize):
 	data = fileOpen.read(buf_read)
+	#el cuarto parámetro lo utilizamos para diferenciar aquellos mensajes con datos del documento enviado
+	#y los que se usan a la hora de establecer la conexión.
 	window.append( str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+"|||"+str(1)+"|||"+str(data))
 	seqNums[i]=nextSeqnum
 	nextSeqnum = (nextSeqnum + 1)%total_seq_numbers
@@ -81,7 +85,7 @@ for i in range(0,windowSize):
 ###############################################################
 ###############################################################
 #
-# AQUI HAY QUE HACER LO DE INICIAR LA CONEXION
+# INICIAR LA CONEXION
 #
 ###############################################################
 ###############################################################
@@ -95,10 +99,11 @@ retry_open = 0
 retry_close = 0
 
 while True:
+	#envia el SYN y también la cantidad de numeros de secuencia a utilizar
 	data_connect_toServer = str(filename)+"|||"+str(total_size)+"|||"+str(total_seq_numbers)+"|||"+str(0)+"|||"+str(syn)
 	clientSocket.sendto(data_connect_toServer, address)
 
-	# Recibo SYN-ACK
+	#Recibo SYN-ACK
 	try:
 		data_server, address = clientSocket.recvfrom(4096)
 	except:
@@ -108,6 +113,7 @@ while True:
 			exit(0)
 		continue
 	(filename, total_size, nextSeqnum_con, tipo_ack, syn)= data_server.split("|||")
+	#si corresponde al SYN-ACK se envia un ack 
 	if data_server:	
 		if tipo_ack=="0" and syn=="1" and str(total_seq_numbers)==str(nextSeqnum_con):
 			print "Recibi SYN-ACK"
@@ -141,10 +147,13 @@ while sender_conectado:
 			break
 		#sino, envia la ventana
 		print "\nsending window\n"
+		
+		#las variables new son para re-ordenar los buffer circulares
+		#de tal forma que el primer elemento quede en el índice 0
 		new_tiempos = []
 		new_window = []
 		new_seq = []
-		
+		#se re-ordena y se envia la nueva ventana
 		for j in range( (last_sent+1), (last_sent+1+sentSize) ):
 			tiempos[j%windowSize]=time.time()
 			clientSocket.sendto(window[j%windowSize], address)
@@ -153,21 +162,20 @@ while sender_conectado:
 			new_seq.append(seqNums[j%windowSize])
 			print "package %d sent" %(seqNums[j%windowSize])
 		
+		#si ya terminó de enviar
 		if sentSize<windowSize and done==True:
 			end_of_sending=seqNums[j%windowSize]
+		#se prepara para una siguiente iteracion	
 		window=new_window
 		tiempos=new_tiempos
 		seqNums=new_seq
 		lastacked=0
 		last_sent=-1
-
-		#si envie menos elementos que el total de la ventana, es porque se termino el archivo
-		
 		retransmisiones+=1
 		lastackreceived=time.time()
 
 	else:
-		#se lee paquete de entrada
+		#si no debo enviar, espero recibir acks
 		try:
 			packet,serverAddress = clientSocket.recvfrom(4096)
 		except:
@@ -196,14 +204,15 @@ while sender_conectado:
 		###############################################################
 		###############################################################
 		#
-		# AQUI HAY QUE HACER LO DE TERMINAR LA CONEXION, EN EL IF
+		# TERMINAR LA CONEXION
 		#
 		###############################################################
 		###############################################################
 		if done==True and packet==end_of_sending:
 			#Envia fin de cierre
 			while True:
-				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(0)
+				#se manda el fin de la conexion
+				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+ str(1)
 				clientSocket.sendto(fin_toclose, serverAddress)
 
 				#Recibe ack de cierre
@@ -218,8 +227,8 @@ while sender_conectado:
 						break
 					continue
 					
-
-				(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
+				#recibe el fin por parte del servidor
+				(file_name, total_size, nextSeqnum, isData, ack_disconnection) = packet.split("|||")
 				if isData=="0" and ack_disconnection=="1":
 					while True:
 						try:
@@ -233,9 +242,10 @@ while sender_conectado:
 								break
 							continue
 
-						(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
-						if isData=="0" and fin=="1":
-							ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(1)
+						(file_name, total_size, nextSeqnum, isData, ack_disconnection) = packet.split("|||")
+						#confirma la recepcion del fin del servidor
+						if isData=="1" and ack_disconnection=="1":
+							ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+ str(1)
 							clientSocket.sendto(ack_toclose, serverAddress)
 
 							clientSocket.close()
@@ -261,10 +271,8 @@ while sender_conectado:
 		
 		
 		
-			
-		
-		
-		#actualizo el buffer circular en funcion del ack recibido
+
+		#si no hay que terminar la conexion, actualizo el buffer circular en funcion del ack recibido
 		for i in range(lastacked,updateto+1):
 			data = fileOpen.read(buf_read)
 			window[i]= str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+"|||"+str(1)+"|||"+str(data)
@@ -281,8 +289,7 @@ while sender_conectado:
 			retransmisiones=0
 		lastacked=updateto+1
 
-		
-		#si me confirman todos los elementos del buffer:					
+		#si me confirman todos los elementos del buffer, envio una nueva ventana:					
 		if updateto==windowSize-1:
 			lastacked=0
 			lastackreceived=0

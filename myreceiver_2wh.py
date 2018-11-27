@@ -7,7 +7,7 @@ import math
 import time
 
 import random
-#takes the port number as command line arguments and create server socket
+
 serverIP=""
 serverPort=int(sys.argv[2])
 
@@ -16,14 +16,10 @@ serverSocket.bind((serverIP,serverPort))
 serverSocket.settimeout(2)
 print "Ready to serve"
 
-#initializes packet variables 
-
 ack = 0
-#RECEIVES DATA
 
 endoffile = False
-lastpktreceived = time.time()	
-starttime = time.time()
+lastpktreceived = time.time()
 
 #############################################################################
 #
@@ -41,6 +37,7 @@ retry_close=0
 receiver_conectado=False
 
 while True:
+	starttime = time.time()
 	try:
 		data_client, address = serverSocket.recvfrom(4096)
 	except:
@@ -87,14 +84,14 @@ while receiver_conectado:
 	###################################################################################
 	#Termino conexion
 	if packet.split("|||")[3]=="0":
-		(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
-		if fin=="1": #Recibe ack de cierre
+		(file_name, total_size, nextSeqnum, ack_disconnection,fin) = packet.split("|||")
+		if fin=="1" and ack_disconnection=="0": #Recibe ack de cierre
 			#Manda ack de cierre
 			while True:
-				ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(1)
+				ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+ str(1)
 				serverSocket.sendto(ack_toclose, clientAddress)
 				#Manda fin de cierre
-				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(0)
+				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(1)+"|||"+ str(1)
 				serverSocket.sendto(fin_toclose, clientAddress)
 				
 				#recibe ack de cierre
@@ -109,8 +106,8 @@ while receiver_conectado:
 						break
 					continue
 					
-				(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
-				if isData=="0" and ack_disconnection=="1":
+				(file_name, total_size, nextSeqnum, ack_disconnection,fin) = packet.split("|||")
+				if fin=="1" and ack_disconnection=="0":
 					serverSocket.close() #cerrar conexion con el cliente
 					receiver_conectado=False
 					print "Receiver cerrado"

@@ -7,7 +7,7 @@ import math
 import time
 
 import random
-#takes the port number as command line arguments and create server socket
+#recibe el nombre y numero de puerto al que conectarse
 serverIP=""
 serverPort=int(sys.argv[2])
 
@@ -16,10 +16,10 @@ serverSocket.bind((serverIP,serverPort))
 serverSocket.settimeout(2)
 print "Ready to serve"
 
-#initializes packet variables 
 
+#ack inicial a recibir
 ack = 0
-#RECEIVES DATA
+
 
 endoffile = False
 lastpktreceived = time.time()	
@@ -41,6 +41,7 @@ retry_close=0
 receiver_conectado=False
 
 while True:
+	#intenta recibir el syn del cliente
 	try:
 		data_client, address = serverSocket.recvfrom(4096)
 	except:
@@ -49,7 +50,7 @@ while True:
 			print "no se pudo establecer la conexion"
 			exit(0)
 		continue
-		
+	#si corresponde a un syn, se confirma
 	if data_client:
 		(filename, total_size, nextSeqnum_con, tipo_ack, syn)= data_client.split("|||")
 		if tipo_ack!="0" or syn!="1":
@@ -61,6 +62,7 @@ while True:
 		print "Recibi SYN desde cliente"
 		serverSocket.sendto(data_server, address)
 
+	#se intenta recibir el ack para iniciar la conexion
 	while True:
 		try:
 			data_client, address = serverSocket.recvfrom(4096)
@@ -84,12 +86,14 @@ while True:
 		break
 
 
-
+#se comunican el numero de secuencia en este paso
 total_seq_numbers=int(nextSeqnum_con)
-	
+
+#abre el archivo de salida
 f = open("output_"+filename, "wb")
 	
 while receiver_conectado:
+	#recibe los datos
 	try:
 		packet,clientAddress= serverSocket.recvfrom(4096)
 	except:
@@ -107,14 +111,14 @@ while receiver_conectado:
 	###################################################################################
 	#Termino conexion
 	if packet.split("|||")[3]=="0":
-		(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
-		if fin=="1": #Recibe ack de cierre
+		(file_name, total_size, nextSeqnum, ack_disconnection,fin) = packet.split("|||")
+		if fin=="1" and ack_disconnection=="0": #Recibe ack de cierre
 			#Manda ack de cierre
 			while True:
-				ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(1)
+				ack_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+ str(1)
 				serverSocket.sendto(ack_toclose, clientAddress)
 				#Manda fin de cierre
-				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(0)+"|||"+str(1)+"|||"+ str(0)
+				fin_toclose = str(filename)+"|||"+str(total_size)+"|||"+str(nextSeqnum)+ "|||"+str(1)+"|||"+ str(1)
 				serverSocket.sendto(fin_toclose, clientAddress)
 				
 				#recibe ack de cierre
@@ -129,8 +133,8 @@ while receiver_conectado:
 						break
 					continue
 					
-				(file_name, total_size, nextSeqnum, isData, fin, ack_disconnection) = packet.split("|||")
-				if isData=="0" and ack_disconnection=="1":
+				(file_name, total_size, nextSeqnum, ack_disconnection,fin) = packet.split("|||")
+				if fin=="1" and ack_disconnection=="0":
 					serverSocket.close() #cerrar conexion con el cliente
 					receiver_conectado=False
 					print "Receiver cerrado"
@@ -143,7 +147,7 @@ while receiver_conectado:
 	
 	(file_name, total_size, nextSeqnum, isData, data) = packet.split("|||")
 	
-	
+	#si recibo datos, valido que sea igual al ack esperado
 	if str(nextSeqnum) == str(ack):
 		serverSocket.sendto(str(ack),clientAddress)
 		ack = (ack + 1)%total_seq_numbers
